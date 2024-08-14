@@ -1,0 +1,92 @@
+---
+title: "Import raw data"
+format: gfm
+---
+
+## Data source
+
+Data is downloaded from https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Datasets/NSFG/ on 8/14/2024 including:
+
+- 2011_2019_FemaleWgtData.dat
+- 2017_2019_FemPregData.dat
+
+National Center for Health Statistics (NCHS). (2020). 2017-2019 National Survey of
+Family Growth Public-Use Data and Documentation. Hyattsville, MD: CDC National
+Center for Health Statistics. Retrieved from
+http://www.cdc.gov/nchs/nsfg/nsfg_2017_2019_puf.htm.
+
+## Import data
+
+```{r}
+#| label: package-load
+
+library(tidyverse)
+library(tidylog)
+```
+
+
+```{r}
+#| label: import-wts
+
+surv_wt_in <- read_fwf(
+  here::here("raw-data", "2011_2019_FemaleWgtData.dat"),
+  col_positions = fwf_positions(
+    start=c(1, 6, 22, 38, 54, 70, 86), 
+    end=c(5, 21, 37, 53, 69, 85, 101),
+    col_names=c("CASEID", "WGT2011_2015", "WGT2013_2017", "WGT2015_2019", "WGT2011_2017", "WGT2013_2019", "WGT2011_2019")),
+  col_types="n")
+
+summary(surv_wt_in)
+glimpse(surv_wt_in)
+```
+
+```{r}
+#| label: import-preg-dat
+
+preg_dat_in <- read_fwf(
+  here::here("raw-data", "2017_2019_FemPregData.dat"),
+  col_positions = fwf_positions(
+    start=c(1, 6, 8, 9, 10, 45, 102, 103, 105, 106, 138, 221, 222, 248), 
+    end=  c(5, 7, 8, 9, 10, 45, 102, 103, 105, 107, 139, 221, 224, 251),
+    col_names=c("CASEID", "PREGORDR", "MOSCURRP", "PREGEND1", "PREGEND2", "NBRNLV_S", "GEST_LB", "GEST_OTHR", "OUTCOME", "BIRTHORD", "AGER", "SECU", "SEST", "INTVWYEAR")),
+  col_types="n")
+
+summary(preg_dat_in)
+glimpse(preg_dat_in)
+```
+
+```{r}
+#| label: merge-data
+
+dat_tog <- preg_dat_in %>%
+  left_join(select(surv_wt_in, CASEID, WGT2011_2019), by="CASEID")
+
+nrow(preg_dat_in)
+nrow(dat_tog)
+```
+
+```{r}
+#| label: mismatch-inv
+
+dat_tog %>% filter(is.na(WGT2011_2019)) %>% summary()
+```
+
+Those age 45-50 do not have weights so the whole set has a consistent age. This older group was only added in later years.
+
+
+```{r}
+#| label: adj-wt
+
+dat_tog_wt <- dat_tog %>%
+  mutate(
+    WGT2011_2019=replace_na(WGT2011_2019, 0)
+  )
+```
+
+
+```{r}
+#| label: save-data
+
+write_rds(dat_tog_wt, here::here("Data", "d01_preg_dat.rds"))
+```
+
